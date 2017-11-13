@@ -1,18 +1,15 @@
 package smUtils;
 
 import static smUtils.helper.ConsoleService.showAnswer;
-import static smUtils.helper.ConsoleService.showError;
 
-import java.io.BufferedReader;
+import com.google.common.collect.Lists;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Properties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.PropertySource;
@@ -24,6 +21,8 @@ import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 import org.springframework.util.StringUtils;
+import smUtils.helper.ProcessUtil;
+import smUtils.helper.PropUtil;
 import smUtils.helper.StringToPathConverter;
 
 /**
@@ -33,6 +32,7 @@ import smUtils.helper.StringToPathConverter;
 @ShellComponent
 @PropertySources({ @PropertySource(value = "classpath:setup-commands.properties", ignoreResourceNotFound = true) })
 public class SetupCommands {
+  private Environment env;
   private List<String> plot;
   private Path projectPath;
   private String cloneFrom;
@@ -45,8 +45,9 @@ public class SetupCommands {
 
   @Autowired
   SetupCommands(Environment env) {
+    this.env = env;
     initProperties(env);
-    plot = Arrays.asList("Operations chain for autoInstall:",
+    plot = Lists.newArrayList("Operations chain for autoInstall:",
                          "\tclone project to path (if need use --clone + clonefrom.url in setup-commands.properties)",
                          "\trun mvn command: clean install -Ptbi", "\tcreateUserDB", "\tconfig schemaDB",
                          "\tconfig resources.properties", "\tdownload templates", "**You must config your IDE manually",
@@ -80,17 +81,22 @@ public class SetupCommands {
   }
 
   @ShellMethod("show instructions plot")
-  public List<String> plot() {
-    plot.forEach(System.out::println);
-    return null;
+  public void plot() {
+    plot.forEach(line -> showAnswer(line));
+  }
+
+  @ShellMethod("reinit properties")
+  public void reinit() {
+    initProperties(env);
+    showAnswer("reinit complete");
   }
 
   @ShellMethod("auto-install sm-project for dev. Path - URI wanted location.")
-  public String auto(@ShellOption(defaultValue = "false") boolean clone) {
+  public void auto(@ShellOption(defaultValue = "false") boolean clone) {
     if (clone) {
       clone(cloneFrom, projectPath);
     }
-    //init(null);
+    //install(null);
     //createUser(user, password);
     //applySqlScripts(scripts);
     try {
@@ -99,25 +105,27 @@ public class SetupCommands {
       e.printStackTrace();
     }
     templates(Paths.get(templatesFrom), templatesTo);
-    return null;
   }
 
   /**
    * clone project from URL to path
    */
+  @ShellMethod("clone sm-project")
   void clone(String from, Path to) {
-    runProcess(true, null, "git", "clone", from, to.toString());
+    ArrayList<String> commands = Lists.newArrayList("git", "clone", from, to.toString());
+    ProcessUtil.exec(true, null, commands);
+    showAnswer("%s is complete\ncloned into: %s", commands, to);
   }
 
   @ShellMethod("run \"mvn clean install\" command. Par - additional paramener (can be -Ptbi)")
-  public String init(@ShellOption(defaultValue = "") String par) {
-    //TODO dont work
-    if (!"".equals(par)) {
-      runProcess(true, projectPath, "mvn", "clean", "install", par);
-    } else {
-      runProcess(true, projectPath, "mvn", "clean", "install");
+  public void install(@ShellOption(defaultValue = "") String par) {
+    List<String> commands = Lists.newArrayList("mvn", "clean", "install");
+    if(!StringUtils.isEmpty(par)) {
+      commands.add(par);
     }
-    return null;
+    //TODO dont work
+    //runProcess(true, projectPath, commands);
+    showAnswer("%s is complete", commands);
   }
 
   @ShellMethod("create user in oracle-DB")
@@ -126,68 +134,32 @@ public class SetupCommands {
   }
 
   @ShellMethod("apply to oracle-DB scripts: create.sql, initdata.sql (URI paths)")
-  String applySqlScripts(@ShellOption(arity = 2, defaultValue = "") Path[] scriptsSql) {
+  void applySqlScripts(@ShellOption(arity = 2, defaultValue = "") Path[] scriptsSql) {
     if (scriptsSql == null || scriptsSql.length < 1) {
       scriptsSql = this.scripts;
     }
-    return null;
+
+    for (Path script : scriptsSql) {
+      showAnswer("%s applied", script);
+    }
   }
 
   @ShellMethod("config resources.properties")
-  public String config(@ShellOption(defaultValue = "") Path propsPath) throws IOException {
+  public void config(@ShellOption(defaultValue = "") Path propsPath) throws IOException {
     if (propsPath == null || StringUtils.isEmpty(propsPath.toString())) {
       propsPath = resourcePath;
     }
     List<String> resourceFileContent = Files.readAllLines(propsPath);
-    mergeProps(resourceFileContent, setupProps);
+    PropUtil.mergeProps(resourceFileContent, setupProps);
     Files.write(propsPath, resourceFileContent);
-    return null;
-  }
-
-  private void mergeProps(List<String> resourceFileContent, Properties forMerge) {
-    ListIterator<String> iter = resourceFileContent.listIterator();
-    while (iter.hasNext()) {
-      String line = iter.next().trim();
-      if (line.startsWith("#")) {
-        continue;
-      }
-      int eqIndex = line.indexOf('=');
-      if (eqIndex == -1) {
-        continue;
-      }
-      String key = line.substring(0, eqIndex - 1).trim();
-      if (forMerge.contains(key)) {
-        String newValue = setupProps.getProperty(key);
-        iter.set(key + '=' + newValue);
-      }
-    }
+    showAnswer("%s configured", propsPath);
   }
 
   @ShellMethod("downloads templates")
-  public String templates(Path from, Path to) {
-    return null;
-  }
-
-  private void runProcess(boolean showConsole, Path homeDir, String... commands) {
-    ProcessBuilder processBuilder = new ProcessBuilder(commands);
-    if (homeDir != null) {
-      processBuilder.directory(homeDir.toFile());
-    }
-    try {
-      Process process = processBuilder.start();
-      process.waitFor();
-      if (showConsole) {
-        //TODO dont work
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line;
-        while ((line = reader.readLine()) != null) {
-          showAnswer(line);
-        }
-      }
-    } catch (IOException e) {
-      showError(e, "IO promlem. See log");
-    } catch (InterruptedException e) {
-      showError(e, "Process Interrupted promlem. See log");
-    }
+  public void templates(Path from, Path to) {
+    //download from
+    //unzip
+    //save to
+    showAnswer("templates downloaded & unzipped\nto: ",  to);
   }
 }
