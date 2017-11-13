@@ -16,7 +16,7 @@ import org.springframework.util.StringUtils;
 @Component
 final public class StringToPathConverter implements Converter<String, Path> {
 
-  private static final Logger log = LoggerFactory.getLogger(StringToPathConverter.class);
+
   private static final String INCORRECT_URI_FORMAT = "Incorrect URI format: ";
 
   @Override
@@ -28,7 +28,8 @@ final public class StringToPathConverter implements Converter<String, Path> {
     try {
       result = Paths.get(URI.create(source));
     } catch (IllegalArgumentException ex) {
-      ConsoleService.showError(INCORRECT_URI_FORMAT + source);
+      ConsoleService.showError(ex, INCORRECT_URI_FORMAT + source);
+
     }
     return result;
   }

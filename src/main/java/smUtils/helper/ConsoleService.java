@@ -1,6 +1,8 @@
 package smUtils.helper;
 
 import java.io.PrintStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -9,6 +11,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ConsoleService {
+
+  private static final Logger log = LoggerFactory.getLogger(StringToPathConverter.class);
   private static final String ANSI_YELLOW = "\u001B[33m";
   private static final String ANSI_RESET = "\u001B[0m";
   public static final String ANSI_RED = "\u001B[31m";
@@ -27,10 +31,11 @@ public class ConsoleService {
     out.println();
   }
 
-  public static void showError(String msg, Object... args) {
+  public static void showError(Throwable ex, String msg, Object... args) {
     out.print(ANSI_RED);
     out.printf(msg, (Object[]) args);
     out.print(ANSI_RESET);
     out.println();
+    log.debug(msg, ex);
   }
 }
