@@ -14,27 +14,43 @@ import java.util.List;
  * @since 13.11.2017
  */
 public class ProcessUtil {
+  private ProcessBuilder processBuilder;
+  private boolean showConsole;
+  private Path logfile;
 
-  public static void exec(boolean showConsole, Path homeDir, List<String> commands) {
-    ProcessBuilder processBuilder = new ProcessBuilder(commands);
-    if (homeDir != null) {
-      processBuilder.directory(homeDir.toFile());
-    }
-    try {
-      Process process = processBuilder.start();
-      process.waitFor();
-      if (showConsole) {
-        //TODO dont work
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line;
-        while ((line = reader.readLine()) != null) {
-          showAnswer(line);
-        }
+  private ProcessUtil(List<String> commands) {
+    processBuilder = new ProcessBuilder(commands);
+  }
+
+  public static ProcessUtil create(List<String> commands) {
+    return new ProcessUtil(commands);
+  }
+
+  public void run() throws IOException, InterruptedException {
+    Process process = processBuilder.start();
+    if (showConsole) {
+      //TODO dont work
+      BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      String line;
+      while ((line = reader.readLine()) != null) {
+        showAnswer(line);
       }
-    } catch (IOException e) {
-      showError(e, "IO promlem. See log");
-    } catch (InterruptedException e) {
-      showError(e, "Process Interrupted promlem. See log");
     }
+    process.waitFor();
+  }
+
+  public ProcessUtil homeDir(Path homeDir) {
+    processBuilder.directory(homeDir.toFile());
+    return this;
+  }
+
+  public ProcessUtil logfile(Path logfile) {
+    this.logfile = logfile;
+    return this;
+  }
+
+  public ProcessUtil showConsole() {
+    this.showConsole = true;
+    return this;
   }
 }

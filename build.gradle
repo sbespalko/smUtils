@@ -28,11 +28,14 @@ repositories {
   maven { url "https://repo.spring.io/snapshot" }
 }
 
-
 dependencies {
   compile('org.springframework.shell:spring-shell-starter:2.0.0.M2')
   compile('com.google.guava:guava:23.4-jre')
-
-
   testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+jar {
+  manifest {
+    attributes 'Main-Class': 'SmUtilApplication'
+  }
 }

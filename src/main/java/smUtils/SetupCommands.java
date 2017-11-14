@@ -30,7 +30,8 @@ import smUtils.helper.StringToPathConverter;
  * @since 13.11.2017
  */
 @ShellComponent
-@PropertySources({ @PropertySource(value = "classpath:setup-commands.properties", ignoreResourceNotFound = true) })
+@PropertySources({ @PropertySource(value = "classpath:setup-commands.properties", ignoreResourceNotFound = true),
+                   @PropertySource(value = "classpath:db.properties", ignoreResourceNotFound = true) })
 public class SetupCommands {
   private Environment env;
   private List<String> plot;
@@ -42,16 +43,19 @@ public class SetupCommands {
   private Path resourcePath;
   private String templatesFrom;
   private Path templatesTo;
+  private String dbUser;
+  private String dbPass;
 
   @Autowired
   SetupCommands(Environment env) {
     this.env = env;
     initProperties(env);
     plot = Lists.newArrayList("Operations chain for autoInstall:",
-                         "\tclone project to path (if need use --clone + clonefrom.url in setup-commands.properties)",
-                         "\trun mvn command: clean install -Ptbi", "\tcreateUserDB", "\tconfig schemaDB",
-                         "\tconfig resources.properties", "\tdownload templates", "**You must config your IDE manually",
-                         "**For more info see: https://devscape02.x5.ru/pages/viewpage.action?pageId=83955371");
+                              "\tclone project to path (if need use --clone + clonefrom.url in setup-commands.properties)",
+                              "\trun mvn command: clean install -Ptbi", "\tcreateUserDB", "\tconfig schemaDB",
+                              "\tconfig resources.properties", "\tdownload templates",
+                              "**You must config your IDE manually",
+                              "**For more info see: https://devscape02.x5.ru/pages/viewpage.action?pageId=83955371");
   }
 
   private void initProperties(Environment env) {
@@ -92,38 +96,35 @@ public class SetupCommands {
   }
 
   @ShellMethod("auto-install sm-project for dev. Path - URI wanted location.")
-  public void auto(@ShellOption(defaultValue = "false") boolean clone) {
+  public void auto(@ShellOption(defaultValue = "false") boolean clone) throws IOException, InterruptedException {
     if (clone) {
       clone(cloneFrom, projectPath);
     }
-    //install(null);
-    //createUser(user, password);
-    //applySqlScripts(scripts);
-    try {
-      config(resourcePath);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+    install("-Ptbi");
+    createUser(setupProps.getProperty("resource.ConnectionPool.user"),
+               setupProps.getProperty("resource.ConnectionPool.pass"));
+    applySqlScripts(scripts);
+    config(resourcePath);
     templates(Paths.get(templatesFrom), templatesTo);
   }
 
   /**
    * clone project from URL to path
    */
-  @ShellMethod("clone sm-project")
-  void clone(String from, Path to) {
+  private void clone(String from, Path to) throws IOException, InterruptedException {
     ArrayList<String> commands = Lists.newArrayList("git", "clone", from, to.toString());
-    ProcessUtil.exec(true, null, commands);
+    ProcessUtil.create(commands).run();
     showAnswer("%s is complete\ncloned into: %s", commands, to);
   }
 
   @ShellMethod("run \"mvn clean install\" command. Par - additional paramener (can be -Ptbi)")
-  public void install(@ShellOption(defaultValue = "") String par) {
+  public void install(@ShellOption(defaultValue = "") String par) throws IOException, InterruptedException {
     List<String> commands = Lists.newArrayList("mvn", "clean", "install");
-    if(!StringUtils.isEmpty(par)) {
+    if (!StringUtils.isEmpty(par)) {
       commands.add(par);
     }
     //TODO dont work
+    ProcessUtil.create(commands).homeDir(projectPath).run();
     //runProcess(true, projectPath, commands);
     showAnswer("%s is complete", commands);
   }
@@ -138,7 +139,7 @@ public class SetupCommands {
     if (scriptsSql == null || scriptsSql.length < 1) {
       scriptsSql = this.scripts;
     }
-
+    //TODO connect to DB and exec scripts
     for (Path script : scriptsSql) {
       showAnswer("%s applied", script);
     }
@@ -158,8 +159,9 @@ public class SetupCommands {
   @ShellMethod("downloads templates")
   public void templates(Path from, Path to) {
     //download from
+
     //unzip
     //save to
-    showAnswer("templates downloaded & unzipped\nto: ",  to);
+    showAnswer("templates downloaded & unzipped\nto: ", to);
   }
 }
